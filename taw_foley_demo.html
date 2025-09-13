@@ -1,0 +1,1651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Unsupervised Single-Channel Audio Separation with Diffusion Source Priors</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Source+Serif+Pro:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.3/css/bulma.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <link rel="stylesheet" href="style.css"> 
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+  <style>
+
+.section { 
+    padding-top: 1.25rem;  
+    padding-bottom: 1.25rem;
+  }
+  
+  .section + .section {
+    margin-top: 0.75rem;   
+  }
+  
+  .section-label {
+    margin-top: 0.75rem;   
+    margin-bottom: 0.75rem;
+  }
+  
+  .sample-block { 
+    margin-bottom: 12px;   
+  }
+  
+  .sample-block-row { 
+    gap: 16px;            
+    margin-bottom: 8px;    
+  }
+  
+  .audio-divider {
+    border-top: 1px solid #e6e6e6;
+    margin: 8px 0;         
+  }
+  body.dark-mode .audio-divider {
+    border-bottom-color: #3a3a3a;
+  }
+  .section:last-of-type { padding-bottom: 0.75rem; }
+  .sample-block:last-child { margin-bottom: 0; }
+
+    audio {
+        width: 80%;        
+        max-width: 500px;    
+        display: block;       
+        margin: 6px 0;    
+      }
+      
+    .sidebar-toggle, .dark-mode-toggle{
+      width: 50px;             
+      height: 50px;
+      border-radius: 50%;   
+      position: fixed; top:14px; z-index:3000;
+      border:none; cursor:pointer; 
+      padding: 16px 24px; 
+      font-size: 16px; 
+      border-radius:28px; 
+      padding:8px 10px;
+      background:#e0e0e0; color:#333; box-shadow:0 2px 8px rgba(0,0,0,.12);
+    }
+    #sidebarToggle{ left:16px; }
+    #darkModeToggle{ right:16px; }
+    .sidebar-toggle:hover, .dark-mode-toggle:hover{ filter:brightness(.95); }
+    .sidebar-toggle:active, .dark-mode-toggle:active{ filter:brightness(.9); }
+    body.dark-mode .sidebar-toggle, body.dark-mode .dark-mode-toggle{ background:#333; color:#f0f0f0; }
+
+    .sidebar{
+      position:fixed; top:0; left:0; height:150vh; width:280px;
+      background:#fff; box-shadow:2px 0 12px rgba(0,0,0,.08);
+      transform:translateX(-100%) !important;            
+      transition:transform .35s cubic-bezier(.25,.8,.25,1) !important;
+      will-change:transform; z-index:2500; display:flex; flex-direction:column;
+    }
+
+    body[data-sidebar="open"] .sidebar{ transform:translateX(0) !important; }
+
+    body.dark-mode .sidebar{ background:#1b1b1b; box-shadow:2px 0 12px rgba(0,0,0,.4); }
+
+    .sidebar-header{ display:flex; align-items:center; justify-content:space-between;
+      padding:28px 16px; border-bottom:1px solid #eee; }
+    body.dark-mode .sidebar-header{ border-bottom:1px solid #222; }
+    .sidebar-title{ font-size:18px; font-weight:600; }
+    .close-sidebar{ border:none; background:transparent; cursor:pointer; font-size:18px; color:inherit; }
+
+    .sidebar-menu{ list-style:none; margin:0; padding:10px 0; overflow-y:auto; flex:1; }
+    .sidebar-item{ margin:4px 0; }
+    .sidebar-button{
+      display:block; width:100%; padding:10px 16px; color:#333; text-decoration:none; border-left:3px solid transparent;
+    }
+    .sidebar-button:hover{ background:#f5f5f5; }
+    body.dark-mode .sidebar-button{ color:#ddd; }
+    body.dark-mode .sidebar-button:hover{ background:#232323; }
+
+    .sidebar-footer{ padding:12px 16px; border-top:1px solid #eee; color:#777; font-size:14px; }
+    body.dark-mode .sidebar-footer{ border-top:1px solid #222; color:#aaa; }
+
+    .content-area{ max-width:950px; margin:0 auto; padding:24px 16px 80px; }
+
+    body{ background:#fff; color:#222; }
+    body.dark-mode{ background:#111; color:#e9e9e9; }
+
+    body:not(.ready) *{ transition:none !important; }
+    body.ready,
+    body.ready .sidebar,
+    body.ready .sidebar-header,
+    body.ready .sidebar-button,
+    body.ready .sidebar-footer,
+    body.ready .content-area,
+    body.ready section,
+    body.ready .sample-block,
+    body.ready .row div,
+    body.ready audio,
+    body.ready img,
+    body.ready h1, body.ready h2, body.ready h3, body.ready h4, body.ready p{
+      transition: background-color .25s ease, color .25s ease, border-color .25s ease, box-shadow .25s ease, filter .25s ease;
+    }
+
+    body.dark-mode .title,
+    body.dark-mode .subtitle,
+    body.dark-mode h1, body.dark-mode h2, body.dark-mode h3, body.dark-mode h4, body.dark-mode h5, body.dark-mode h6,
+    body.dark-mode p, body.dark-mode li, body.dark-mode span, body.dark-mode strong, body.dark-mode em, body.dark-mode small{
+      color:#e9e9e9;
+    }
+    body.dark-mode a{ color:#8ab4ff; }
+    body.dark-mode a:hover{ color:#a7c4ff; }
+
+    .section-label{ font-size:1.4rem; font-weight:700; margin:2rem 0 1rem; }
+    .sample-block{
+      border:1px solid #e6e6e6; border-radius:10px; padding:14px; margin-bottom:20px; background:transparent;
+    }
+    body.dark-mode .sample-block{ border-color:#6f6f6f; background:transparent; }
+    .sample-title{ font-weight:600; margin-bottom:10px; }
+    .row{ margin:8px 0; }
+    .model-name{ font-size:.95rem; margin-bottom:6px; color:#444; }
+    body.dark-mode .model-name{ color:#cfcfcf; }
+    .waveform-placeholder img, .row img{ max-width:100%; height:auto; display:block; }
+    audio{ width:100%; }
+
+    #darkModeToggle i{ transition:transform .4s ease, color .4s ease; display:inline-block; }
+    #darkModeToggle i.animate{ transform:rotate(180deg); }
+
+.sample-block-row{
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;              
+  margin-bottom: 5px;     
+  align-items: stretch;  
+}
+
+.sample-block{
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;        
+  flex-direction: column;
+}
+
+
+.sample-block .row:last-child{ margin-bottom: 0; }
+
+  </style>
+</head>
+
+<body>
+  <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle sidebar"><i class="fas fa-bars"></i></button>
+  <button class="dark-mode-toggle" id="darkModeToggle" aria-label="Toggle dark mode"><i class="fas fa-moon"></i></button>
+
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <h2 class="sidebar-title"></h2>
+      <button class="close-sidebar" id="closeSidebar" aria-label="Close sidebar"><i class="fas fa-times"></i></button>
+    </div>
+    <ul class="sidebar-menu">
+      <li class="sidebar-item"><a href="#top" class="sidebar-button">Home</a></li>
+      <li class="sidebar-item"><a href="#D0" class="sidebar-button">Footstep</a></li>
+      <li class="sidebar-item"><a href="#D1" class="sidebar-button">Gunshot</a></li>
+      <li class="sidebar-item"><a href="#D2" class="sidebar-button">Keyboard</a></li>
+      <li class="sidebar-item"><a href="#D3" class="sidebar-button">Vehicle</a></li>
+      <li class="sidebar-item"><a href="#D4" class="sidebar-button">Rainfall</a></li>
+      <li class="sidebar-item"><a href="#D5" class="sidebar-button">Cough</a></li>
+      <li class="sidebar-item"><a href="#D6" class="sidebar-button">Dog Bark</a></li>
+
+    </ul>
+    <div class="sidebar-footer"></div>
+  </div>
+
+
+  <div class="content-area">
+    <section id="top">
+      <div class="hero-body">
+        <div class="container has-text-centered">
+          <h1 class="title is-3">TAW-Foley: Triple Attention Waveform Diffusion Model for Foley Sound Generation</h1>
+          <h2 class="subtitle is-5">Runwu Shi, Chang Li, Jiahui Li, Jiang Wang, Ragib Amin Nihal, Kazuhiro Nakadai</h2>
+
+
+          <a class="button is-rounded is-medium" style="background-color:#313131; color:#ffffff; border:none;" href="https://github.com/RunwuShi/TAW-FOLEY" target="_blank">
+            <span class="icon"><i class="fab fa-github"></i></span><span>GitHub Repository</span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+
+    <section class="section" id="abstract" style="padding-top: 1rem;">
+        <div class="content has-text-justified">
+            <strong>Abstract:</strong> Recent advancements in deep generative models have greatly improved Foley sound generation, especially with diffusion-based methods that directly generate high-quality waveforms. However, the backbones of these models, typically based on convolutional U-Nets or temporal self-attention on spectrograms, have limited ability to capture the fine-grained temporal and frequency structures of Foley sounds, thereby constraining their expressive capacity. To address this, we introduce a frequency-domain diffusion model for raw waveform generation. Our model employs three attention mechanisms to capture features at different scales: intra-frame, intra-subband, and full-temporal. This approach not only enhances generation quality but also drastically reduces model parameters, leading to more efficient audio modeling. Furthermore, our model design supports more detailed temporal-event control, allowing for precise control over the generated sounds. Both objective and subjective experiments validate the feasibility of our proposed model.
+        </div>
+    </section>
+
+    <div class="line-above"></div>
+
+
+    <!-- content -->
+
+    <section class="section" id="D0">
+      <div class="section-label">Footstep</div>
+      <!-- <h2 class="title is-3 section-title">Label0</h2> -->
+      <div class="sample-block-row">
+      <!-- sample_000202_label0 -->
+      <div class="sample-block">
+        <!-- <div class="sample-title">sample_000202_label0</div> -->
+
+        <div class="row">
+          <div>
+            <div class="model-name">Reference · RMS Energy</div>
+            <img src="audio/Label0/ref/sample_000202_label0_ref_rms.png" alt="RMS sample_000202_label0">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <div class="model-name">Reference · Spectrogram</div>
+            <img src="audio/Label0/ref/sample_000202_label0_ref.png" alt="Ref Spec sample_000202_label0">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">Ref · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label0/ref/sample_000202_label0_ref.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">TAW-foley</div>
+            <img src="audio/Label0/TAW-foley/sample_000202_label0_gen.png" alt="TAW-foley Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">TAW-foley · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label0/TAW-foley/sample_000202_label0_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">TAW-foley-small</div>
+            <img src="audio/Label0/TAW-foley-small/sample_000202_label0_gen.png" alt="TAW-foley-small Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">TAW-foley-small · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label0/TAW-foley-small/sample_000202_label0_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">T-foley</div>
+            <img src="audio/Label0/T-foley/sample_000202_label0_gen.png" alt="T-foley Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">T-foley · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label0/T-foley/sample_000202_label0_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">Mamba-foley</div>
+            <img src="audio/Label0/Mamba-foley/sample_000202_label0_gen.png" alt="Mamba-foley Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <audio controls>
+              <source src="audio/Label0/Mamba-foley/sample_000202_label0_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+          </div>
+        </div>
+      </div>
+      <!-- sample_000291_label0 -->
+      <div class="sample-block">
+        <!-- <div class="sample-title">sample_000291_label0</div> -->
+        <div class="row">
+          <div>
+            <div class="model-name">Reference · RMS Energy</div>
+            <img src="audio/Label0/ref/sample_000291_label0_ref_rms.png" alt="RMS sample_000291_label0">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <div class="model-name">Reference · Spectrogram</div>
+            <img src="audio/Label0/ref/sample_000291_label0_ref.png" alt="Ref Spec sample_000291_label0">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">Ref · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label0/ref/sample_000291_label0_ref.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">TAW-foley</div>
+            <img src="audio/Label0/TAW-foley/sample_000291_label0_gen.png" alt="TAW-foley Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">TAW-foley · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label0/TAW-foley/sample_000291_label0_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">TAW-foley-small</div>
+            <img src="audio/Label0/TAW-foley-small/sample_000291_label0_gen.png" alt="TAW-foley-small Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">TAW-foley-small · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label0/TAW-foley-small/sample_000291_label0_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">T-foley</div>
+            <img src="audio/Label0/T-foley/sample_000291_label0_gen.png" alt="T-foley Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">T-foley · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label0/T-foley/sample_000291_label0_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+          <div class="audio-divider"></div>
+
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">Mamba-foley</div>
+            <img src="audio/Label0/Mamba-foley/sample_000291_label0_gen.png" alt="Mamba-foley Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <audio controls>
+              <source src="audio/Label0/Mamba-foley/sample_000291_label0_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- <hr> -->
+    <section class="section" id="D1">  
+      <div class="section-label">Gunshot</div>
+      <div class="sample-block-row">
+      <!-- sample_000202_label0 -->
+      <div class="sample-block">
+        <!-- <div class="sample-title">sample_000202_label0</div> -->
+
+        <div class="row">
+          <div>
+            <div class="model-name">Reference · RMS Energy</div>
+            <img src="audio/Label1/ref/sample_000401_label1_ref_rms.png" alt="RMS sample_000202_label0">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <div class="model-name">Reference · Spectrogram</div>
+            <img src="audio/Label1/ref/sample_000401_label1_ref.png" alt="Ref Spec sample_000202_label0">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">Ref · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label1/ref/sample_000401_label1_ref.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">TAW-foley</div>
+            <img src="audio/Label1/TAW-foley/sample_000401_label1_gen.png" alt="TAW-foley Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">TAW-foley · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label1/TAW-foley/sample_000401_label1_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">TAW-foley-small</div>
+            <img src="audio/Label1/TAW-foley-small/sample_000401_label1_gen.png" alt="TAW-foley-small Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">TAW-foley-small · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label1/TAW-foley-small/sample_000401_label1_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">T-foley</div>
+            <img src="audio/Label1/T-foley/sample_000401_label1_gen.png" alt="T-foley Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">T-foley · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label1/T-foley/sample_000401_label1_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">Mamba-foley</div>
+            <img src="audio/Label1/Mamba-foley/sample_000401_label1_gen.png" alt="Mamba-foley Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">Mamba-foley · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label1/Mamba-foley/sample_000401_label1_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+          </div>
+        </div>
+      </div>
+      <!-- sample_000291_label0 -->
+      <div class="sample-block">
+        <!-- <div class="sample-title">sample_000291_label0</div> -->
+        <div class="row">
+          <div>
+            <div class="model-name">Reference · RMS Energy</div>
+            <img src="audio/Label1/ref/sample_000471_label1_ref_rms.png" alt="RMS sample_000291_label0">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <div class="model-name">Reference · Spectrogram</div>
+            <img src="audio/Label1/ref/sample_000471_label1_ref.png" alt="Ref Spec sample_000291_label0">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">Ref · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label1/ref/sample_000471_label1_ref.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">TAW-foley</div>
+            <img src="audio/Label1/TAW-foley/sample_000471_label1_gen.png" alt="TAW-foley Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">TAW-foley · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label1/TAW-foley/sample_000471_label1_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">TAW-foley-small</div>
+            <img src="audio/Label1/TAW-foley-small/sample_000471_label1_gen.png" alt="TAW-foley-small Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">TAW-foley-small · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label1/TAW-foley-small/sample_000471_label1_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">T-foley</div>
+            <img src="audio/Label1/T-foley/sample_000471_label1_gen.png" alt="T-foley Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">T-foley · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label1/T-foley/sample_000471_label1_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">Mamba-foley</div>
+            <img src="audio/Label1/Mamba-foley/sample_000471_label1_gen.png" alt="Mamba-foley Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">Mamba-foley · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label1/Mamba-foley/sample_000471_label1_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <section class="section" id="D2">  
+      <div class="section-label">Keyboard</div>
+      <div class="sample-block-row">
+      <!-- sample_000202_label0 -->
+      <div class="sample-block">
+        <!-- <div class="sample-title">sample_000202_label0</div> -->
+
+        <div class="row">
+          <div>
+            <div class="model-name">Reference · RMS Energy</div>
+            <img src="audio/Label2/ref/sample_000008_label2_ref_rms.png" alt="RMS sample_000202_label0">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <div class="model-name">Reference · Spectrogram</div>
+            <img src="audio/Label2/ref/sample_000008_label2_ref.png" alt="Ref Spec sample_000202_label0">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">Ref · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label2/ref/sample_000008_label2_ref.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">TAW-foley</div>
+            <img src="audio/Label2/TAW-foley/sample_000008_label2_gen.png" alt="TAW-foley Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">TAW-foley · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label2/TAW-foley/sample_000008_label2_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">TAW-foley-small</div>
+            <img src="audio/Label2/TAW-foley-small/sample_000008_label2_gen.png" alt="TAW-foley-small Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">TAW-foley-small · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label2/TAW-foley-small/sample_000008_label2_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">T-foley</div>
+            <img src="audio/Label2/T-foley/sample_000008_label2_gen.png" alt="T-foley Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">T-foley · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label2/T-foley/sample_000008_label2_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">Mamba-foley</div>
+            <img src="audio/Label2/Mamba-foley/sample_000008_label2_gen.png" alt="Mamba-foley Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">Mamba-foley · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label2/Mamba-foley/sample_000008_label2_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+          </div>
+        </div>
+      </div>
+      <!-- sample_000291_label0 -->
+      <div class="sample-block">
+        <!-- <div class="sample-title">sample_000291_label0</div> -->
+        <div class="row">
+          <div>
+            <div class="model-name">Reference · RMS Energy</div>
+            <img src="audio/Label2/ref/sample_000074_label2_ref_rms.png" alt="RMS sample_000291_label0">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <div class="model-name">Reference · Spectrogram</div>
+            <img src="audio/Label2/ref/sample_000074_label2_ref.png" alt="Ref Spec sample_000291_label0">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">Ref · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label2/ref/sample_000074_label2_ref.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">TAW-foley</div>
+            <img src="audio/Label2/TAW-foley/sample_000074_label2_gen.png" alt="TAW-foley Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">TAW-foley · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label2/TAW-foley/sample_000074_label2_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">TAW-foley-small</div>
+            <img src="audio/Label2/TAW-foley-small/sample_000074_label2_gen.png" alt="TAW-foley-small Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">TAW-foley-small · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label2/TAW-foley-small/sample_000074_label2_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">T-foley</div>
+            <img src="audio/Label2/T-foley/sample_000074_label2_gen.png" alt="T-foley Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">T-foley · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label2/T-foley/sample_000074_label2_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">Mamba-foley</div>
+            <img src="audio/Label2/Mamba-foley/sample_000074_label2_gen.png" alt="Mamba-foley Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">Mamba-foley · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label2/Mamba-foley/sample_000074_label2_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <!-- <div class="audio-divider"></div> -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="D3">
+      <div class="section-label">Vehicle</div>
+      <div class="sample-block-row">
+      <!-- sample_000202_label0 -->
+      <div class="sample-block">
+        <!-- <div class="sample-title">sample_000202_label0</div> -->
+
+        <div class="row">
+          <div>
+            <div class="model-name">Reference · RMS Energy</div>
+            <img src="audio/Label3/ref/sample_000358_label3_ref_rms.png" alt="RMS sample_000202_label0">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <div class="model-name">Reference · Spectrogram</div>
+            <img src="audio/Label3/ref/sample_000358_label3_ref.png" alt="Ref Spec sample_000202_label0">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">Ref · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label3/ref/sample_000358_label3_ref.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">TAW-foley</div>
+            <img src="audio/Label3/TAW-foley/sample_000358_label3_gen.png" alt="TAW-foley Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">TAW-foley · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label3/TAW-foley/sample_000358_label3_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">TAW-foley-small</div>
+            <img src="audio/Label3/TAW-foley-small/sample_000358_label3_gen.png" alt="TAW-foley-small Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">TAW-foley-small · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label3/TAW-foley-small/sample_000358_label3_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">T-foley</div>
+            <img src="audio/Label3/T-foley/sample_000358_label3_gen.png" alt="T-foley Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">T-foley · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label3/T-foley/sample_000358_label3_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">Mamba-foley</div>
+            <img src="audio/Label3/Mamba-foley/sample_000358_label3_gen.png" alt="Mamba-foley Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">Mamba-foley · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label3/Mamba-foley/sample_000358_label3_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+          </div>
+        </div>
+      </div>
+      <!-- sample_000291_label0 -->
+      <div class="sample-block">
+        <!-- <div class="sample-title">sample_000291_label0</div> -->
+        <div class="row">
+          <div>
+            <div class="model-name">Reference · RMS Energy</div>
+            <img src="audio/Label3/ref/sample_000362_label3_ref_rms.png" alt="RMS sample_000291_label0">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <div class="model-name">Reference · Spectrogram</div>
+            <img src="audio/Label3/ref/sample_000362_label3_ref.png" alt="Ref Spec sample_000291_label0">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">Ref · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label3/ref/sample_000362_label3_ref.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">TAW-foley</div>
+            <img src="audio/Label3/TAW-foley/sample_000362_label3_gen.png" alt="TAW-foley Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">TAW-foley · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label3/TAW-foley/sample_000362_label3_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">TAW-foley-small</div>
+            <img src="audio/Label3/TAW-foley-small/sample_000362_label3_gen.png" alt="TAW-foley-small Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">TAW-foley-small · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label3/TAW-foley-small/sample_000362_label3_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">T-foley</div>
+            <img src="audio/Label3/T-foley/sample_000362_label3_gen.png" alt="T-foley Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">T-foley · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label3/T-foley/sample_000362_label3_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">Mamba-foley</div>
+            <img src="audio/Label3/Mamba-foley/sample_000362_label3_gen.png" alt="Mamba-foley Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">Mamba-foley · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label3/Mamba-foley/sample_000362_label3_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <!-- <div class="audio-divider"></div> -->
+          </div>
+        </div>
+      </div>
+    </section>
+    
+    <section class="section" id="D4">
+      <div class="section-label">Rainfall</div>
+      <div class="sample-block-row">
+      <!-- sample_000202_label0 -->
+      <div class="sample-block">
+        <!-- <div class="sample-title">sample_000202_label0</div> -->
+
+        <div class="row">
+          <div>
+            <div class="model-name">Reference · RMS Energy</div>
+            <img src="audio/Label4/ref/sample_000164_label4_ref_rms.png" alt="RMS sample_000202_label0">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <div class="model-name">Reference · Spectrogram</div>
+            <img src="audio/Label4/ref/sample_000164_label4_ref.png" alt="Ref Spec sample_000202_label0">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">Ref · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label4/ref/sample_000164_label4_ref.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">TAW-foley</div>
+            <img src="audio/Label4/TAW-foley/sample_000164_label4_gen.png" alt="TAW-foley Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">TAW-foley · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label4/TAW-foley/sample_000164_label4_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">TAW-foley-small</div>
+            <img src="audio/Label4/TAW-foley-small/sample_000164_label4_gen.png" alt="TAW-foley-small Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">TAW-foley-small · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label4/TAW-foley-small/sample_000164_label4_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">T-foley</div>
+            <img src="audio/Label4/T-foley/sample_000164_label4_gen.png" alt="T-foley Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">T-foley · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label4/T-foley/sample_000164_label4_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">Mamba-foley</div>
+            <img src="audio/Label4/Mamba-foley/sample_000164_label4_gen.png" alt="Mamba-foley Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">Mamba-foley · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label4/Mamba-foley/sample_000164_label4_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+          </div>
+        </div>
+      </div>
+      <!-- sample_000291_label0 -->
+      <div class="sample-block">
+        <!-- <div class="sample-title">sample_000291_label0</div> -->
+        <div class="row">
+          <div>
+            <div class="model-name">Reference · RMS Energy</div>
+            <img src="audio/Label4/ref/sample_000173_label4_ref_rms.png" alt="RMS sample_000291_label0">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <div class="model-name">Reference · Spectrogram</div>
+            <img src="audio/Label4/ref/sample_000173_label4_ref.png" alt="Ref Spec sample_000291_label0">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">Ref · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label4/ref/sample_000173_label4_ref.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">TAW-foley</div>
+            <img src="audio/Label4/TAW-foley/sample_000173_label4_gen.png" alt="TAW-foley Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">TAW-foley · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label4/TAW-foley/sample_000173_label4_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">TAW-foley-small</div>
+            <img src="audio/Label4/TAW-foley-small/sample_000173_label4_gen.png" alt="TAW-foley-small Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">TAW-foley-small · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label4/TAW-foley-small/sample_000173_label4_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">T-foley</div>
+            <img src="audio/Label4/T-foley/sample_000173_label4_gen.png" alt="T-foley Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">T-foley · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label4/T-foley/sample_000173_label4_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">Mamba-foley</div>
+            <img src="audio/Label4/Mamba-foley/sample_000173_label4_gen.png" alt="Mamba-foley Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">Mamba-foley · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label4/Mamba-foley/sample_000173_label4_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <!-- <div class="audio-divider"></div> -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+      <section class="section" id="D5">
+      <div class="section-label">Cough</div>
+      <div class="sample-block-row">
+      <!-- sample_000202_label0 -->
+      <div class="sample-block">
+        <!-- <div class="sample-title">sample_000202_label0</div> -->
+
+        <div class="row">
+          <div>
+            <div class="model-name">Reference · RMS Energy</div>
+            <img src="audio/Label5/ref/sample_000600_label5_ref_rms.png" alt="RMS sample_000202_label0">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <div class="model-name">Reference · Spectrogram</div>
+            <img src="audio/Label5/ref/sample_000600_label5_ref.png" alt="Ref Spec sample_000202_label0">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">Ref · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label5/ref/sample_000600_label5_ref.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">TAW-foley</div>
+            <img src="audio/Label5/TAW-foley/sample_000600_label5_gen.png" alt="TAW-foley Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">TAW-foley · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label5/TAW-foley/sample_000600_label5_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">TAW-foley-small</div>
+            <img src="audio/Label5/TAW-foley-small/sample_000600_label5_gen.png" alt="TAW-foley-small Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">TAW-foley-small · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label5/TAW-foley-small/sample_000600_label5_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">T-foley</div>
+            <img src="audio/Label5/T-foley/sample_000600_label5_gen.png" alt="T-foley Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">T-foley · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label5/T-foley/sample_000600_label5_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">Mamba-foley</div>
+            <img src="audio/Label5/Mamba-foley/sample_000600_label5_gen.png" alt="Mamba-foley Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">Mamba-foley · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label5/Mamba-foley/sample_000600_label5_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+          </div>
+        </div>
+      </div>
+      <!-- sample_000291_label0 -->
+      <div class="sample-block">
+        <!-- <div class="sample-title">sample_000291_label0</div> -->
+        <div class="row">
+          <div>
+            <div class="model-name">Reference · RMS Energy</div>
+            <img src="audio/Label5/ref/sample_000667_label5_ref_rms.png" alt="RMS sample_000291_label0">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <div class="model-name">Reference · Spectrogram</div>
+            <img src="audio/Label5/ref/sample_000667_label5_ref.png" alt="Ref Spec sample_000291_label0">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">Ref · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label5/ref/sample_000667_label5_ref.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">TAW-foley</div>
+            <img src="audio/Label5/TAW-foley/sample_000667_label5_gen.png" alt="TAW-foley Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">TAW-foley · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label5/TAW-foley/sample_000667_label5_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">TAW-foley-small</div>
+            <img src="audio/Label5/TAW-foley-small/sample_000667_label5_gen.png" alt="TAW-foley-small Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">TAW-foley-small · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label5/TAW-foley-small/sample_000667_label5_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">T-foley</div>
+            <img src="audio/Label5/T-foley/sample_000667_label5_gen.png" alt="T-foley Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">T-foley · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label5/T-foley/sample_000667_label5_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">Mamba-foley</div>
+            <img src="audio/Label5/Mamba-foley/sample_000667_label5_gen.png" alt="Mamba-foley Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">Mamba-foley · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label5/Mamba-foley/sample_000667_label5_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <!-- <div class="audio-divider"></div> -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="D6">
+      <div class="section-label">Dog Bark</div>
+      <div class="sample-block-row">
+      <!-- sample_000202_label0 -->
+      <div class="sample-block">
+        <!-- <div class="sample-title">sample_000202_label0</div> -->
+
+        <div class="row">
+          <div>
+            <div class="model-name">Reference · RMS Energy</div>
+            <img src="audio/Label6/ref/sample_000500_label6_ref_rms.png" alt="RMS sample_000202_label0">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <div class="model-name">Reference · Spectrogram</div>
+            <img src="audio/Label6/ref/sample_000500_label6_ref.png" alt="Ref Spec sample_000202_label0">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">Ref · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label6/ref/sample_000500_label6_ref.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">TAW-foley</div>
+            <img src="audio/Label6/TAW-foley/sample_000500_label6_gen.png" alt="TAW-foley Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">TAW-foley · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label6/TAW-foley/sample_000500_label6_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">TAW-foley-small</div>
+            <img src="audio/Label6/TAW-foley-small/sample_000500_label6_gen.png" alt="TAW-foley-small Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">TAW-foley-small · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label6/TAW-foley-small/sample_000500_label6_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">T-foley</div>
+            <img src="audio/Label6/T-foley/sample_000500_label6_gen.png" alt="T-foley Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">T-foley · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label6/T-foley/sample_000500_label6_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">Mamba-foley</div>
+            <img src="audio/Label6/Mamba-foley/sample_000500_label6_gen.png" alt="Mamba-foley Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">Mamba-foley · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label6/Mamba-foley/sample_000500_label6_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+          </div>
+        </div>
+      </div>
+      <!-- sample_000291_label0 -->
+      <div class="sample-block">
+        <!-- <div class="sample-title">sample_000291_label0</div> -->
+        <div class="row">
+          <div>
+            <div class="model-name">Reference · RMS Energy</div>
+            <img src="audio/Label6/ref/sample_000597_label6_ref_rms.png" alt="RMS sample_000291_label0">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <div class="model-name">Reference · Spectrogram</div>
+            <img src="audio/Label6/ref/sample_000597_label6_ref.png" alt="Ref Spec sample_000291_label0">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">Ref · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label6/ref/sample_000597_label6_ref.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">TAW-foley</div>
+            <img src="audio/Label6/TAW-foley/sample_000597_label6_gen.png" alt="TAW-foley Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">TAW-foley · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label6/TAW-foley/sample_000597_label6_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">TAW-foley-small</div>
+            <img src="audio/Label6/TAW-foley-small/sample_000597_label6_gen.png" alt="TAW-foley-small Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">TAW-foley-small · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label6/TAW-foley-small/sample_000597_label6_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">T-foley</div>
+            <img src="audio/Label6/T-foley/sample_000597_label6_gen.png" alt="T-foley Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">T-foley · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label6/T-foley/sample_000597_label6_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-divider"></div>
+
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <div class="model-name">Mamba-foley</div>
+            <img src="audio/Label6/Mamba-foley/sample_000597_label6_gen.png" alt="Mamba-foley Spec">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- <div class="model-name">Mamba-foley · Audio</div> -->
+            <audio controls>
+              <source src="audio/Label6/Mamba-foley/sample_000597_label6_gen.wav" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+            <!-- <div class="audio-divider"></div> -->
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const body = document.body;
+    const sidebarToggle = document.getElementById('sidebarToggle');
+    const closeSidebarBtn = document.getElementById('closeSidebar');
+  
+    const openSidebar  = () => { body.setAttribute('data-sidebar','open');  sidebarToggle?.setAttribute('aria-expanded','true'); };
+    const closeSidebar = () => { body.removeAttribute('data-sidebar');      sidebarToggle?.setAttribute('aria-expanded','false'); };
+    const toggleSidebar = () => (body.getAttribute('data-sidebar')==='open' ? closeSidebar() : openSidebar());
+  
+    sidebarToggle?.addEventListener('click', toggleSidebar);
+    closeSidebarBtn?.addEventListener('click', closeSidebar);
+    document.addEventListener('keydown', e => { if(e.key==='Escape') closeSidebar(); });
+  
+    function toggleDarkMode(){
+      document.body.classList.toggle('dark-mode');
+      const icon = document.getElementById('darkModeToggle')?.querySelector('i');
+      if (icon){
+        icon.classList.add('animate');
+        if(document.body.classList.contains('dark-mode')){
+          icon.classList.remove('fa-moon'); icon.classList.add('fa-sun');
+        }else{
+          icon.classList.remove('fa-sun'); icon.classList.add('fa-moon');
+        }
+        setTimeout(()=>icon.classList.remove('animate'), 400);
+      }
+      localStorage.setItem('darkMode', document.body.classList.contains('dark-mode'));
+    }
+    document.getElementById('darkModeToggle')?.addEventListener('click', toggleDarkMode);
+  
+    document.querySelectorAll('.sidebar-button').forEach(btn=>{
+      btn.addEventListener('click', e=>{
+        const href = btn.getAttribute('href');
+        if (!href || !href.startsWith('#')) return;  
+        const target = document.querySelector(href);
+        if(!target) return;
+  
+        e.preventDefault();
+  
+        const offset = 80;
+        const start = window.pageYOffset;
+        const end = target.getBoundingClientRect().top + window.pageYOffset - offset;
+        const distance = end - start;
+        const duration = 300;
+        let startTime = null;
+  
+        function animateScroll(ts){
+          if(startTime===null) startTime = ts;
+          const t = Math.min((ts - startTime)/duration, 1);
+          const ease = t < 0.5 ? 2*t*t : -1 + (4 - 2*t)*t;
+          window.scrollTo(0, start + distance*ease);
+          if(t < 1) requestAnimationFrame(animateScroll);
+        }
+        requestAnimationFrame(animateScroll);
+  
+        if (window.innerWidth < 768) closeSidebar();
+      });
+    });
+  
+    document.addEventListener('DOMContentLoaded', ()=>{
+      if(localStorage.getItem('darkMode')==='true'){
+        document.body.classList.add('dark-mode');
+        const icon = document.getElementById('darkModeToggle')?.querySelector('i');
+        icon?.classList.remove('fa-moon'); icon?.classList.add('fa-sun');
+      }
+      document.body.classList.add('ready');
+  
+      sidebarToggle?.setAttribute('aria-expanded', body.getAttribute('data-sidebar')==='open' ? 'true' : 'false');
+    });
+  </script>
+</body>
+</html>
